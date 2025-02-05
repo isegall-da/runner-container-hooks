@@ -14,12 +14,17 @@ export const DEFAULT_CONTAINER_ENTRY_POINT = 'tail'
 
 export const ENV_HOOK_TEMPLATE_PATH = 'ACTIONS_RUNNER_CONTAINER_HOOK_TEMPLATE'
 export const ENV_USE_KUBE_SCHEDULER = 'ACTIONS_RUNNER_USE_KUBE_SCHEDULER'
+export const ENV_SKIP_VOLUME_MOUNTS = 'ACTIONS_RUNNER_SKIP_VOLUME_MOUNTS'
+export const ENV_SKIP_COPY_EXTERNALS = 'ACTIONS_RUNNER_SKIP_COPY_EXTERNALS'
 
 export function containerVolumes(
   userMountVolumes: Mount[] = [],
   jobContainer = true,
   containerAction = false
 ): k8s.V1VolumeMount[] {
+  if (process.env[ENV_SKIP_VOLUME_MOUNTS] === 'true') {
+    return []
+  }
   const mounts: k8s.V1VolumeMount[] = [
     {
       name: POD_VOLUME_NAME,
@@ -147,6 +152,7 @@ export function writeEntryPointScript(
   const content = `#!/bin/sh -l
 ${exportPath}
 cd ${workingDirectory} && \
+sudo chown -R $(id -u):$(id -g) . && \
 exec ${environmentPrefix} ${entryPoint} ${
     entryPointArgs?.length ? entryPointArgs.join(' ') : ''
   }
@@ -220,7 +226,10 @@ export function mergePodSpecWithOptions(
       )
     } else if (key === 'volumes' && value) {
       const volumes = value as k8s.V1Volume[]
-      base.volumes = mergeLists(base.volumes, volumes)
+      const baseVolumes = (volumes.filter(v => v.name == 'work').length) ?
+        base.volumes?.map(v => { if (v.name == 'work') { return { ...v, name: 'shared' } } else { return v } }) :
+        base.volumes
+      base.volumes = mergeLists(baseVolumes, volumes)
     } else {
       base[key] = value
     }

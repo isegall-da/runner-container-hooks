@@ -226,6 +226,7 @@ export function mergePodSpecWithOptions(
       )
     } else if (key === 'volumes' && value) {
       const volumes = value as k8s.V1Volume[]
+      // If work volume is overridden by the extension, rename the base work volume to `shared`
       const baseVolumes = (volumes.filter(v => v.name == 'work').length) ?
         base.volumes?.map(v => { if (v.name == 'work') { return { ...v, name: 'shared' } } else { return v } }) :
         base.volumes
